@@ -10,7 +10,7 @@ http://commons.wikimedia.org/wiki/User:Faebot/GLAM_dashboard
 There is poorly designed and dead code here! You can have quick and dirty
 or clean and never. It's the wiki-way, probably. ;-)
 
-Date: November 2014
+Date: Nov 2014
 Author: Fae, http://commons.wikimedia.org/wiki/User:Fae
 Permissions: CC-BY-SA-4.0
 
@@ -20,7 +20,9 @@ project.
 '''
 
 import urllib
-import pywikibot, re, catlib, pagegenerators
+import pywikibot
+import re
+import catlib, pagegenerators
 import MySQLdb
 
 def improvement(cat_list):
@@ -245,15 +247,24 @@ def index(bpage):
 				text += "* [[:" + bpage + "/" + sub + "|" + sub[0:1].upper() + sub[1:] + "]]\n"
 		return text.encode('utf-8', 'ignore')
 
-def put_report(report, spage, action):
+def put_report(report, spage, action, imagecheck=True):
 		report = report.decode('utf-8', 'ignore')
 		page = pywikibot.Page(site, spage)
-		try:
+		'''try:
 				html = page.get()
 				if len(html)==len(report):	# There may be some real changes lost, but most of non-length changes are trivial shuffling
 						return
+				if imagecheck:
+						imgs = set(re.findall(r"File:[^\|\]]*\(jpe?g|JPE?G|og[gv]|OG[GV]|svg|SVG|tiff?|TIFF?|gif|GIF)", html))
+						rimgs = set(re.findall(r"File:[^\|\]]*\(jpe?g|JPE?G|og[gv]|OG[GV]|svg|SVG|tiff?|TIFF?|gif|GIF)", report))
+						if imgs.issubset(rimgs) and rimgs.issubset(imgs):
+								return
 		except:
-				pass
+				pass'''
+		cats = [c.title() for c in page.categories()]
+		for cat in cats:
+				if not re.search(re.escape(cat), report):
+						report += '\n[[' + cat + ']]'
 		pywikibot.setAction(action)
 		page.put(report)
 		return
@@ -276,12 +287,12 @@ def main():
 		for project in projects:
 				cscats = ('"' + '","'.join([re.sub(" ","_",c[9:]) for c in project[0]]) + '"').encode('utf-8')
 				put_report(improvement(cscats), project[1] + "/improvement", "GLAM dashboard improvement suggestions")
-				put_report(popular_categories(cscats), project[1] + "/popular_categories", "GLAM dashboard update popular categories")
+				put_report(popular_categories(cscats), project[1] + "/popular_categories", "GLAM dashboard update popular categories", imagecheck=False)
 				put_report(glamorous_list(cscats), project[1] + "/wikimedia_usage", "GLAM dashboard update usage")
-				put_report(volunteers(cscats), project[1] + "/volunteers", "GLAM dashboard update volunteer list")
+				put_report(volunteers(cscats), project[1] + "/volunteers", "GLAM dashboard update volunteer list", imagecheck=False)
 				put_report(most_edited(cscats), project[1] + "/most_edited", "GLAM dashboard update most edited")
 				put_report(largest(cscats), project[1] + "/largest", "GLAM dashboard update largest")
-				put_report(index(project[1]), project[1] + "/index", "GLAM dashboard index")
+				put_report(index(project[1]), project[1] + "/index", "GLAM dashboard index", imagecheck=False)
 		conn.close()
 
 if __name__ == "__main__":
