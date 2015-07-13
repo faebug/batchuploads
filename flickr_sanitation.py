@@ -8,12 +8,14 @@
 # or clean and never. ;-)
 #
 # Date: Apr 2014, Feb 2015
+# July 2015 - added pools, posted to Flickr date
 # Author: Fae, http://j.mp/faewm
 # Permissions: CC-BY-SA-4.0
 '''
 
 import wikipedia, upload, sys, config, urllib2, urllib, re, string, time, catlib, pagegenerators, os, hashlib, pprint, subprocess
 import webbrowser, itertools, cookielib, json
+import datetime
 from unidecode import unidecode
 from BeautifulSoup import BeautifulSoup
 from sys import argv
@@ -435,8 +437,8 @@ for ploop in range(startpage, endpage):
 				record['source'] = sizes.get('source')
 				record['height'] = sizes.get('height')
 				record['width'] = sizes.get('width')
-				tags = [t.get('raw') for t in info[0].find('tags').findall('tag')]
-				record['tags'] = "; ".join(tags)
+				tags = [re.sub("[=#]", " ", t.get('raw')) for t in info[0].find('tags').findall('tag')]
+				record['tags'] = tags
 				cats = []
 				for tag in tags:
 						try:
@@ -450,6 +452,8 @@ for ploop in range(startpage, endpage):
 				
 				record['sets'] = []
 				record['sets'] = [s.get('title') for s in contexts.findall('set')]
+				record['pools']= [s.get('title') for s in contexts.findall('pool')]
+				record['posted'] = datetime.datetime.fromtimestamp(float(info[0].find('dates').get('posted'))).strftime('%Y-%m-%d')
 				record['nsid'] = info[0].find('owner').get('nsid')
 				record['username'] = info[0].find('owner').get('username')
 				record['realname'] = info[0].find('owner').get('realname')
@@ -529,11 +533,19 @@ for ploop in range(startpage, endpage):
 				d+= "\n|permission= {{Commons:Batch uploading/Sustainable Sanitation Alliance/credit}}"
 				d+= "\n<!-- Flickr license at time of upload: "+record['licence']+" -->"
 				d+= "\n|other_versions="
-				d+= "\n|other_fields="
-				if len(record['sets'])>=1:
-						d+="{{Information field|name=Flickr sets|value=" + "<br/>".join(record['sets']) + "}}"
-				if len(record['tags'])>2:
-						d+="{{Information field|name=Flickr tags|value=" + record['tags'] + "}}"
+				other_fields = "\n|other_fields="
+				#if record['safety']!='0':
+				#		other_fields += "{{Information field|name=Flickr safety level|value=" + ['','Moderate','Restricted'][int(float(record['safety']))] + "}}"
+				if record['sets']!=[]:
+						other_fields += "{{Information field|name=Flickr sets|value={{flatlist|\n*"+'\n*'.join(record['sets']) + "\n}}}}"
+				if record['pools']!=[]:
+						other_fields += "{{Information field|name=Flickr pools|value={{flatlist|\n*"+'\n*'.join(record['pools']) + "\n}}}}"
+				if record['tags']!=[]:
+						other_fields += "{{Information field|name=Flickr tags|value={{flatlist|\n*"+'\n*'.join(record['tags']) + "\n}}}}"
+				if len(record['posted'])>1 and not re.search(record['posted'], record['date']):
+						other_fields += "{{Information field|name=Flickr posted date|value={{ISOdate|1=" + record['posted'] + "}}}}"
+				if len(other_fields)>20:
+						d+= other_fields
 				d+= "\n}}"
 				if len(record['location'])>20:
 						d+= '\n'+record['location']
@@ -549,6 +561,7 @@ for ploop in range(startpage, endpage):
 								d+="\n[[Category:"+cat+"]]"
 				d+= "\n[[Category:Files created by Sustainable Sanitation Alliance (SuSanA)]]"
 				d+= "\n[[Category:Photos uploaded from Flickr by {{subst:User:Fae/Fae}} using a script]]"
+				d+= "\n<!-- Custom upload code: https://github.com/faebug/batchuploads/blob/master/flickr_sanitation.py -->"
 				
 				# Check if image is a duplicate on Commons
 				source = record['source']
