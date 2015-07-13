@@ -199,6 +199,9 @@ def nameused(name):
 				return True
 		return False
 
+def trim(s):
+	return re.sub(r"^[\s_]*|[\s_]*$", "", s)
+
 def trimtags(s):
 	return trim(re.sub('<[^>]*?>','',s))
 
