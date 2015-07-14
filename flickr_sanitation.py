@@ -7,8 +7,8 @@
 # There is dead code here! You can have quick and dirty
 # or clean and never. ;-)
 #
-# Date: Apr 2014, Feb 2015
-# July 2015 - added pools, posted to Flickr date
+# Date: Apr 2014, Feb 2015, July 2015
+# July 2015: added pools, posted to Flickr date, license checks
 # Author: Fae, http://j.mp/faewm
 # Permissions: CC-BY-SA-4.0
 '''
@@ -407,6 +407,26 @@ for ploop in range(startpage, endpage):
 				record['id'] = pid
 				info = flickr.photos_getInfo(user_id=nsid, photo_id=pid, api_key=api_key)
 				record['licence'] = licenses[info[0].get('license')]
+				licgood=False
+				if record['licence'] == 'Attribution License':
+					record['licence'] = '{{CC-BY-2.0}}'
+					licgood=True
+				if record['licence'] == 'Attribution-ShareAlike License':
+					record['licence'] = '{{CC-BY-SA-2.0}}'
+					licgood=True
+				if record['licence'] == 'No known copyright restrictions':
+					record['licence'] = '{{Flickr-no known copyright restrictions}}'
+					licgood = True
+				if record['licence'] == 'Public Domain Dedication (CC0)':
+					record['licence'] = '{{CC0}}'
+					licgood = True
+				if record['licence'] == 'Public Domain Mark':
+					record['licence'] = '{{PD-user|1=' + record['username'] +'}}'
+					licgood = True
+				if not licgood:
+					print Fore.RED, "Licence problem. The licence found is", record['licence'], Fore.WHITE
+					continue
+				
 				record['originalformat'] = info[0].get('originalformat')
 				contexts = flickr.photos_getAllContexts(photo_id = pid)
 				record['title'] = info[0][1].text
@@ -470,7 +490,7 @@ for ploop in range(startpage, endpage):
 						print Fore.RED, record['title'], "\n Does not match filtered items, skipping.", Fore.WHITE
 						continue
 				subs = [
-						['[\/\|:]', '-'],
+						['[\/\|:#]', '-'],
 						['&[Cc].?;','etc'],
 						['& ', 'and '],
 						['[\[\{]', '('],
@@ -534,7 +554,6 @@ for ploop in range(startpage, endpage):
 				d+= "\n|author=[https://www.flickr.com/people/"+record['nsid']+ " SuSanA Secretariat]"
 				d+= "\n|source="+record['url']
 				d+= "\n|permission= {{Commons:Batch uploading/Sustainable Sanitation Alliance/credit}}"
-				d+= "\n<!-- Flickr license at time of upload: "+record['licence']+" -->"
 				d+= "\n|other_versions="
 				other_fields = "\n|other_fields="
 				#if record['safety']!='0':
@@ -553,7 +572,7 @@ for ploop in range(startpage, endpage):
 				if len(record['location'])>20:
 						d+= '\n'+record['location']
 				d+= "\n\n== {{int:license-header}} ==\n"
-				d+= "{{CC-BY-2.0}}\n{{Flickrreview}}\n\n"
+				d+= record['licence'] + "\n{{Flickrreview}}\n\n"
 				for cat in cats:
 						keepcat = True
 						for ccat in cats:
