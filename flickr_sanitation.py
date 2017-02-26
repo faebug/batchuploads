@@ -1,20 +1,21 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-'''
-# Sustainable Sanitation Alliance (SuSanA)
-# Flickr batch upload.
-# 
-# There is dead code here! You can have quick and dirty
-# or clean and never. ;-)
-#
-# Date: Apr 2014, Feb 2015, July 2015
-# July 2015: added pools, posted to Flickr date, license checks
-# Author: Fae, http://j.mp/faewm
-# Permissions: CC-BY-SA-4.0
+NOTICE = '''
+Sustainable Sanitation Alliance (SuSanA)
+Flickr batch upload.
+
+Date: Apr 2014, Feb 2015,
+ 2015 July: added pools, posted to Flickr date, license checks
+ 2017 February: convert to pywikibot.core
+ 
+Author: Fae, http://j.mp/faewm
+Code license: CC-BY-SA-4.0
 '''
 
-import wikipedia, upload, sys, config, urllib2, urllib, re, string, time, catlib, pagegenerators, os, hashlib, pprint, subprocess
-import webbrowser, itertools, cookielib, json
+import pywikibot, upload, sys, urllib2, urllib, re, string, time, os
+import hashlib
+from pywikibot.compat import catlib
+from pywikibot import pagegenerators
 import datetime
 from unidecode import unidecode
 from BeautifulSoup import BeautifulSoup
@@ -38,15 +39,27 @@ Purple="\033[0;35m"  #Purpley
 Cyan="\033[0;36m"    #Cyan
 White="\033[0;37m"   #White
 
-site = wikipedia.getSite('commons', 'commons')
+site = pywikibot.getSite('commons', 'commons')
 
-def up(filename, pagetitle, desc):
-    url = filename
-    keepFilename=True        #set to True to skip double-checking/editing destination filename
-    verifyDescription=False    #set to False to skip double-checking/editing description => change to bot-mode
-    targetSite = wikipedia.getSite('commons', 'commons')
-    bot = upload.UploadRobot(url, description=desc, useFilename=pagetitle, keepFilename=keepFilename, verifyDescription=verifyDescription, targetSite = targetSite)
-    bot.upload_image(debug=True)
+def up(source, pagetitle, desc, comment):
+	if source[:4] == 'http':
+		source_url=source; source_filename=None
+	else:
+		source_url=None; source_filename=source
+	
+	site.upload(pywikibot.ImagePage(site, 'File:' + pagetitle),
+		source_filename=source_filename, 
+		source_url=source_url,
+		comment=comment, 
+		text=desc, 
+		watch=False, 
+		ignore_warnings=False,
+		chunk_size=1048576, 
+		_file_key=None, 
+		_offset=0, 
+		_verify_stash=None,
+		report_success=None)
+
     		
 def urltry(u, headers = { 'User-Agent' : 'Mozilla/5.0' } ):
 	countErr=0
@@ -171,6 +184,7 @@ def dupcheck(ff):	#	Using the SHA1 checksum, find if the file is already uploade
 			except:
 				notread=True
 				print Red+"Trouble getting SHA1 for file, trying again in 5 seconds."
+				print ff
 				time.sleep(5)
 		#print Cyan+'SHA1='+sha1
 		u="http://commons.wikimedia.org/w/api.php?action=query&list=allimages&format=xml&ailimit=1&aiprop=sha1&aisha1="+sha1
@@ -267,7 +281,7 @@ gocats=set()
 def catdiffusion(cat): # test given cat is gocat or nocat
 		if cat in gocats: return True
 		if cat in nocats: return False
-		cat_page = wikipedia.Page(site, "Category:" + cat)
+		cat_page = pywikibot.Page(site, "Category:" + cat)
 		if not cat_page.exists():
 				nocats.add(cat)
 				return False
@@ -291,12 +305,12 @@ def exists(url):	#	Does this Webpage exist?
 				#print Red+"Could not find",url,White
 				return False
 
-def uptry(source,filename,desc):
+def uptry(source,filename,desc,comment):
 		countErr=0
 		r=True
 		while r:
 				try:
-						up(source,filename,desc)
+						up(source,filename,desc,comment)
 						return
 				except:
 						countErr+=1
@@ -310,8 +324,8 @@ def uptry(source,filename,desc):
 		return
 
 def createcat(cat,txt):
-		wikipedia.setAction("Create category")
-		p=wikipedia.Page(site,"Category:"+cat)
+		pywikibot.setAction("Create category")
+		p=pywikibot.Page(site,"Category:"+cat)
 		print Green,"Creating category",cat,White
 		p.put(txt)
 		return
@@ -370,7 +384,7 @@ import flickrapi
 # Hey, if you are reusing this script, you must set up a Flickr API key
 
 api_key = 'a16b575a7753907bcea97a2b22104a57'
-api_secret = open('flickr_api_secret.txt', 'r').read()
+api_secret = open('scripts/flickr_api_secret.txt', 'r').read()
 
 flickr = flickrapi.FlickrAPI(api_key, api_secret)
 
@@ -389,6 +403,7 @@ if len(argv)>2:
 		endpage = int(float(argv[2]))
 
 print Fore.GREEN+"*"*60
+print Fore.YELLOW + NOTICE, Fore.GREEN
 print argv[0]
 print "[1] Start page", startpage
 print "[2] End page", endpage
@@ -584,7 +599,7 @@ for ploop in range(startpage, endpage):
 				d+= "\n[[Category:Files created by Sustainable Sanitation Alliance (SuSanA)]]"
 				d+= "\n[[Category:Photos uploaded from Flickr by {{subst:User:Fae/Fae}} using a script]]"
 				d+= "\n<!-- Custom upload code: https://github.com/faebug/batchuploads/blob/master/flickr_sanitation.py -->"
-				
+				comment = "SuSanA {}, batch reference {}".format(record['id'], count)
 				# Check if image is a duplicate on Commons
 				source = record['source']
 				try:
@@ -605,7 +620,7 @@ for ploop in range(startpage, endpage):
 				print Fore.GREEN, filename.encode('utf-8'), Fore.WHITE
 				while loop:
 						try:
-								uptry(record['source'],filename,d)
+								uptry(record['source'],filename,d,comment)
 								#print filename
 								#print d
 								loop=False
