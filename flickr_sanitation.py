@@ -528,6 +528,8 @@ for ploop in range(startpage, endpage):
 				loop = True
 				while len(filename)>200:
 						filename = " ".join(filename.split(' ')[:-1])
+				if len(filename)<2:
+					filename = "SuSanA"
 				filename = filename + " ("+ record['id'] + ").jpg"
 				
 				# Quick check of filename in use - these should be unique
