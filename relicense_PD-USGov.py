@@ -49,7 +49,7 @@ searchstrings = [
 	['insource:/Coast Guard|USCG photo/i', 'PD-USCG'],
 	['insource:/Treasury Department/', 'PD-USGov-Treasury'],
 	['insource:/af.mil/', 'PD-USAF'],
-	['insource:/navy.mil/', 'PD-USNavy'],
+	['insource:/navy.mil/', 'PD-USGov-Military-Navy'],
 	['insource:/marines.mil/', 'PD-USMC'],
 	['insource:/army.mil/', 'PD-USArmy'],
 	['insource:/39736050@N02/', 'PD-USGov-FDA', 'Images from the United States Food and Drug Administration'],
@@ -102,9 +102,9 @@ searchstrings = [
 	['insource:/65191584@N07/', 'PD-USGov-Congress', 'UScapitol images from flickr'],
 	['insource:/40927340@N03/', 'PD-USMC', 'Files from the U.S. Marine Corps Flickr stream'],
 	['insource:/30884892@N08/', 'PD-USCG', 'Files from the U.S. Coast Guard Flickr stream'],
-	['insource:/56594044@N06/', 'PD-USNavy', 'Files from the U.S. Navy Flickr stream'],
+	['insource:/56594044@N06/', 'PD-USGov-Military-Navy', 'Files from the U.S. Navy Flickr stream'],
 	['insource:/39513508@N06/', 'PD-USAF', 'Files from the U.S. Air Force Flickr stream'],['insource:/af.mil/', 'PD-USAF'],
-	['insource:/navy.mil/', 'PD-USNavy'],
+	['insource:/navy.mil/', 'PD-USGov-Military-Navy'],
 	['insource:/marines.mil/', 'PD-USMC'],
 	['insource:/army.mil/', 'PD-USArmy'],
 	['insource:/39736050@N02/', 'PD-USGov-FDA', 'Images from the United States Food and Drug Administration'],
@@ -157,7 +157,7 @@ searchstrings = [
 	['insource:/65191584@N07/', 'PD-USGov-Congress', 'UScapitol images from flickr'],
 	['insource:/40927340@N03/', 'PD-USMC', 'Files from the U.S. Marine Corps Flickr stream'],
 	['insource:/30884892@N08/', 'PD-USCG', 'Files from the U.S. Coast Guard Flickr stream'],
-	['insource:/56594044@N06/', 'PD-USNavy', 'Files from the U.S. Navy Flickr stream'],
+	['insource:/56594044@N06/', 'PD-USGov-Military-Navy', 'Files from the U.S. Navy Flickr stream'],
 	['insource:/39513508@N06/', 'PD-USAF', 'Files from the U.S. Air Force Flickr stream'],
 	['insource:/35591378@N03/', 'PD-POTUS', 'Files from the Obama White House Flickr stream'],
 	]
@@ -168,6 +168,17 @@ if len(argv)>1:
 	searchstrings = searchstrings[int(float(argv[1])):]
 
 scount = 0
+
+#Expand templates
+for searchstring in searchstrings:
+	template = searchstring[1]
+	tpage = pywikibot.Page(site, 'Template:' + template)
+	if tpage.isRedirectPage():
+		print Fore.CYAN + template, "→",
+		template = tpage.getRedirectTarget().title()[9:]
+		searchstring[1] = template
+		print Fore.GREEN + template
+
 for searchstring in searchstrings:
 	scount+=1
 	print Fore.CYAN + "{:2d}".format(scount), Fore.YELLOW + "{} -> {}".format(searchstring[0], searchstring[1])
@@ -193,7 +204,7 @@ for searchstring in searchstrings:
 				continue
 			if len(searchstring)==3 and not re.search('Category:' + searchstring[2], html):
 				html += "\n[[Category:" + searchstring[2] + "]]"
-			action = "PD-USGov diffusion matching '{}' -> {}".format(searchstring[0], "{{" + searchstring[1] + "}}")
+			action = "PD-USGov diffusion matching '{}' → {}".format(searchstring[0], "{{" + searchstring[1] + "}}")
 			pywikibot.setAction(action)
 			ploop = 0
 			while ploop<100:
