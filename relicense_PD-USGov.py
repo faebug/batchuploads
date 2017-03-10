@@ -7,7 +7,7 @@ Housekeeping of licenses for PD-USGov main category (> 260,000 files).
 https://commons.wikimedia.org/wiki/User:F%C3%A6/code/PD-USGov
 
 Example commandline:
-python pwb.py "relicense PD-USGov" -dir:~/'Google Drive/pywikibot-core/core/Faebot'
+python pwb.py "relicense PD-USGov" -dir:Faebot
 
 2017 February: create
 2017 March: Integrated suggested filters, added optional categorization
@@ -47,7 +47,8 @@ searchstrings = [
 	['insource:/www.nist.gov|PD-USGov-NIST/','PD-USGov-NIST'],
 	['insource:/www.nro.gov|PD-USGov-NRO/', 'PD-USGov-NRO'],
 	['insource:/Coast Guard|USCG photo/i', 'PD-USCG'],
-	['insource:/Treasury Department/', 'PD-USGov-Treasury'],
+	['insource:/cdc.gov|United States Department of Health|Centers? for Disease Control/i', 'PD-USGov-HHS-CDC'],
+	['insource:/Treasury Department|Office for Emergency Management/', 'PD-USGov-Treasury'],
 	['insource:/af.mil/', 'PD-USAF'],
 	['insource:/navy.mil/', 'PD-USGov-Military-Navy'],
 	['insource:/marines.mil/', 'PD-USMC'],
@@ -160,6 +161,8 @@ searchstrings = [
 	['insource:/56594044@N06/', 'PD-USGov-Military-Navy', 'Files from the U.S. Navy Flickr stream'],
 	['insource:/39513508@N06/', 'PD-USAF', 'Files from the U.S. Air Force Flickr stream'],
 	['insource:/35591378@N03/', 'PD-POTUS', 'Files from the Obama White House Flickr stream'],
+	['insource:/nps.gov/', 'PD-USGov-NPS'],
+ 	['insource:/42600860@N02/', 'PD-USGov-NPS', 'Files from the U.S. National Parks Service Flickr stream'],
 	]
 
 searchcore = 'incategory:"PD US Government" insource:/"{{PD-USGov}}"/ '
@@ -199,12 +202,12 @@ for searchstring in searchstrings:
 		html = re.sub(re.escape(escss +"[\n\s]*" + escss), "{{" + searchstring[1] + "}}", html)
 		if len(html)!=len(oldhtml):
 			comments = " ".join([r[3] for r in page.getVersionHistory()])
-			if re.search("PD-USGov diffusion", comments):
+			if re.search("diffusion", comments):
 				print Fore.RED + "Appears to have been previously diffused", Fore.WHITE
 				continue
 			if len(searchstring)==3 and not re.search('Category:' + searchstring[2], html):
 				html += "\n[[Category:" + searchstring[2] + "]]"
-			action = "PD-USGov diffusion matching '{}' → {}".format(searchstring[0], "{{" + searchstring[1] + "}}")
+			action = "[[User:Fæ/code/PD-USGov]] diffusion '{}' → {}".format(searchstring[0], "{{" + searchstring[1] + "}}")
 			pywikibot.setAction(action)
 			ploop = 0
 			while ploop<100:
@@ -214,4 +217,4 @@ for searchstring in searchstrings:
 				except Exception as e:
 					ploop += 1
 					print Fore.CYAN, ploop, Fore.RED, str(e), Fore.WHITE
-					sleep(10 + min(170, 10*ploop))
+					time.sleep(10 + min(170, 10*ploop))
