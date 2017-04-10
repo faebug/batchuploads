@@ -47,6 +47,7 @@ searchstrings = [
 	['insource:/www.nist.gov|PD-USGov-NIST/','PD-USGov-NIST'],
 	['insource:/www.nro.gov|PD-USGov-NRO/', 'PD-USGov-NRO'],
 	['insource:/Coast Guard|USCG photo/i', 'PD-USCG'],
+	['insource:/samhsa.gov|Mental Health Services Administration/i', 'PD-USGov-HHS'],
 	['insource:/cdc.gov|United States Department of Health|Centers? for Disease Control/i', 'PD-USGov-HHS-CDC'],
 	['insource:/Treasury Department|Office for Emergency Management/', 'PD-USGov-Treasury'],
 	['insource:/af.mil/', 'PD-USAF'],
@@ -163,12 +164,13 @@ searchstrings = [
 	['insource:/35591378@N03/', 'PD-POTUS', 'Files from the Obama White House Flickr stream'],
 	['insource:/nps.gov/', 'PD-USGov-NPS'],
  	['insource:/42600860@N02/', 'PD-USGov-NPS', 'Files from the U.S. National Parks Service Flickr stream'],
+ 	['insource:/https://www.dvidshub.net', 'PD-USGov-DOD'],
 	]
 
 searchcore = 'incategory:"PD US Government" insource:/"{{PD-USGov}}"/ '
 
-if len(argv)>1:
-	searchstrings = searchstrings[int(float(argv[1])):]
+'''if len(argv)>1:
+	searchstrings = searchstrings[int(float(argv[1])):]'''
 
 scount = 0
 
