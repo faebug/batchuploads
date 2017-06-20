@@ -10,7 +10,7 @@ param2 = category to test
 
 Example calls:
 nice -n 19 python pwb.py image_hash_dod 13 -dir:Faebot
-nice -n10 python pwb.py image_hash_dod 1 "Images from DoD uploaded by Fæ (check needed)"
+nice -n 10 python pwb.py image_hash_dod 1 "Images from DoD uploaded by Fæ (check needed)"
 python pwb.py image_hash_dod 1 "" -dir:Faebot
 
 Date: June 2017
