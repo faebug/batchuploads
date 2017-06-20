@@ -1,0 +1,194 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+NOTICE = '''
+image_hash_dod.py
+Create image hash values and add to duplicate category.
+Searches by partial VIRIN
+
+param1 = skip to image number (slow)
+param2 = category to test
+
+Example calls:
+nice -n 19 python pwb.py image_hash_dod 13 -dir:Faebot
+nice -n10 python pwb.py image_hash_dod 1 "Images from DoD uploaded by Fæ (check needed)"
+python pwb.py image_hash_dod 1 "" -dir:Faebot
+
+Date: June 2017
+Author: Fae, http://j.mp/faewm
+Permissions: CC-BY-SA-4.0
+'''
+
+import pywikibot, sys, urllib2, urllib, re, string, time, os
+import hashlib
+from pywikibot import pagegenerators
+from PIL import Image
+import imagehash
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+from io import BytesIO     # for handling byte strings
+#from io import StringIO    # for handling unicode strings
+from cStringIO import StringIO # NOT forward compatible but fast
+from sys import argv
+from time import sleep
+from colorama import Fore, Back, Style
+from colorama import init
+init()
+
+#Globals
+site = pywikibot.getSite('commons', 'commons')
+plist=[]
+
+def search(v): # Future: Try using the API directly
+		vcount=0
+		countErr=0
+		loop=True
+		while loop:
+				try:
+						vgen = pywikibot.pagegenerators.SearchPageGenerator(v, namespaces = "6")
+						for vPage in vgen:
+								plist.append(vPage.title())
+								vcount+=1
+						loop=False
+				except:
+						loop=True
+						countErr+=1
+						print Fore.RED +"Problem running search, sleeping for",countErr,"seconds",Fore.WHITE
+						time.sleep(countErr)
+				if countErr>30:
+						loop=False
+						vcount=-1
+		return vcount
+
+print Fore.GREEN + NOTICE, Fore.WHITE
+
+skip = 0
+if len(argv)>1:
+	skip = int(float(argv[1]))
+print Fore.GREEN + "skip =", skip
+category =  "Images from DoD uploaded by Fæ"
+if len(argv)>2 and argv[2]!='':
+	category = argv[2]
+print Fore.GREEN + "category =", category, Fore.WHITE
+category = pywikibot.Category(site, u"Category:" + category.decode('utf-8'))
+
+doneset = set()
+ccount = 0
+for seed in category.members():
+	if seed.namespace() != ":File:":
+		continue
+	if not re.search('jpg|jpeg', seed.title()[-4:], flags = re.I):
+		continue
+	ccount += 1
+	# resolution
+	partvirin = re.match("\d{6}-[ADFGHMNOSZ]-", seed.title()[5:-4])
+	if partvirin is None:
+		html = seed.get()
+		if re.search("virin", html):
+			virin = html.split("virin")[1]
+			virin = re.split("\n", virin)[0]
+			virin = re.sub("\s|=", "", virin)
+			partvirin = re.findall("\d{6}-[ADFGHMNOSZ]-", virin)
+			if partvirin == []:
+				print Fore.RED + "No VIRIN found", seed.title()[5:-4], Fore.WHITE
+				continue
+			else:
+				k=partvirin[0]
+		else:
+			print Fore.RED + "No VIRIN, or parameter, found", seed.title()[5:-4], Fore.WHITE
+			continue
+	if ccount < skip:
+		doneset.add(k)
+		continue
+	if k in doneset:
+		continue
+	print Fore.CYAN, ccount, Fore.GREEN + k, Fore.WHITE
+	doneset.add(k)
+	searchby = '"{}" filemime:image/jpeg insource:"PD-USGov-"'.format(k)
+	plist = []
+	search(searchby)
+	if len(plist)<2:
+		continue
+	if len(plist)>9900:
+		print Fore.RED, "Too big, missing results", Fore.WHITE
+		continue
+	print Fore.CYAN + "*"*80
+	print Fore.CYAN + str(ccount), Fore.YELLOW + "Number of search returns", len(plist), Fore.WHITE
+	rArr = []
+	phashes = set()
+	count = 0
+	for p in plist:
+		count += 1
+		page = pywikibot.ImagePage(site, p)
+		url = page.fileUrl()
+		uname = url.split('/')[-1]	#unameext = uname.split('.')[-1]
+		url = re.sub('/commons/','/commons/thumb/', url)
+		url = url + '/320px-' + uname
+		rloop = 0
+		while rloop < 3:
+			try:
+				fs = StringIO(urllib.urlopen(url).read()) # StringIO ~5x faster
+				im = Image.open(fs)
+				rloop = 99
+			except Exception as e:
+				rloop += 1
+				print Fore.RED + str(rloop), Fore.CYAN + p
+				print Fore.CYAN + url, Fore.WHITE
+				print Fore.RED + str(e), Fore.WHITE
+				sleep(5)
+		if rloop !=99:
+			continue
+		dhash = imagehash.dhash(im)
+		if count == 1 or count % 100 == 0 or (len(plist)<200 and count % 20 == 0) or count == len(plist):
+			print Fore.CYAN + ("{:0>" + str(len(str(len(plist)))) + "}/{} {}").format(count, len(plist), ccount) + Fore.GREEN, p[5:70], Fore.YELLOW + time.strftime("%H:%M:%S"), Fore.WHITE
+		rArr.append([p, dhash])
+		phashes.add(dhash)
+	fArr = []
+	for phash in phashes:
+		matches = []
+		for r in rArr:
+			if phash == r[1]:
+				matches.append(r)
+		if len(matches)>1:
+			fArr.append(matches)
+	print Fore.CYAN + "{} duplicates found".format(len(fArr)), Fore.WHITE
+	for match in fArr:
+		rhash = match[0][1]
+		matchset = set() # Force uniqueness
+		for r in match:
+			matchset.add(r[0])
+		if len(matchset)==1: # Search may repeat items, redirects?
+			print Fore.RED + "Only one file here, skipping", Fore.WHITE
+		for r in matchset:
+			page = pywikibot.Page(site, r)
+			html = page.get()
+			if re.search("Faebot identified duplicate", html):
+				continue
+			skipthis = False
+			# Test for cross links, such as derivatives
+			for c in match:
+				regex = re.escape(c[0][5:])
+				regex = re.sub(" ", ".", regex)
+				if re.search(regex, html):
+					print Fore.YELLOW + "Skipping due to existing x-link"
+					skipthis = True
+					break
+			if skipthis: continue
+			# Test for previous identifications
+			vhistory = page.getVersionHistory()
+			comment = [h[3] for h in vhistory if re.search('Hash:', h[3])]
+			if comment != []:
+				print Fore.CYAN + r[5:50]
+				print Fore.YELLOW + "Skipping due to previously identified history"
+				continue
+			htmlnew = html + "\n[[Category:Faebot identified duplicates|" + str(rhash) + "]]"
+			htmlnew = re.sub("\n?\[\[Category:Images from DoD uploaded by Fæ \(check needed\)\]\]", "", htmlnew)
+			pywikibot.setAction("Faebot VIRIN identified duplicate, dHash: " + str(rhash) + " [[User:Fae/Imagehash]] https://commons.wikimedia.org/w/index.php?title=Category:Faebot_identified_duplicates&from=" + str(rhash))
+			if htmlnew != html:
+				ploop = True
+				while ploop:
+					try:
+						page.put(htmlnew)
+						ploop = False
+					except Exception as e:
+						print Fore.RED + str(e), Fore.WHITE
+						sleep(15)
