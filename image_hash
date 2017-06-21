@@ -1,0 +1,205 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+NOTICE = '''
+image_hash.py
+Create image hash values based on a search.
+Add identicals to duplicate category if chosen.
+Downloads are 80px wide thumbnails.
+List others.
+Useful search qualifiers:
+	filew:{} fileh:{} filemime:image filemime:image/jpeg
+
+param1: search
+param2?: "1" = categorize duplicates to default category
+param3?: <1 to 20> = tolerance for near matches
+
+Example calls:
+nice -n 19 python pwb.py imagehash "NOAA photo library crab" 1 -dir:Faebot
+
+Date: June 2017
+Author: Fae, http://j.mp/faewm
+Permissions: CC-BY-SA-4.0
+'''
+
+import pywikibot, upload, sys, urllib2, urllib, re, string, time, os
+import hashlib, imagehash
+from pywikibot import pagegenerators
+import pprint
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+from io import BytesIO     # for handling byte strings
+#from io import StringIO    # for handling unicode strings
+from cStringIO import StringIO
+from sys import argv, stdout
+from time import sleep
+from os import remove
+from colorama import Fore, Back, Style, init
+init()
+
+# Globals
+site = pywikibot.getSite('commons', 'commons')
+plist=[]
+
+def search(v):
+		vcount=0
+		countErr=0
+		loop=True
+		while loop:
+				try:
+						vgen = site.search(v, namespaces = "6")
+						for vPage in vgen:
+							vcount+=1
+							if vcount % 1000 == 0:
+								print Fore.CYAN, vcount, Fore.WHITE
+							plist.append(vPage.title())
+							if vcount>20000:
+								break
+						loop=False
+				except:
+						loop=True
+						countErr+=1
+						print Fore.RED +"Problem running search, sleeping for",countErr,"seconds",Fore.WHITE
+						time.sleep(countErr)
+				if countErr>30:
+						loop=False
+						vcount=-1
+		return vcount
+
+print Fore.GREEN + NOTICE, Fore.WHITE
+
+if len(argv)>1:
+	searchby = argv[1]
+	if not re.search('filemime', searchby):
+		searchby += " filemime:image filew:>320"
+	print Fore.YELLOW + "Param 1 =", Fore.CYAN + searchby, Fore.WHITE
+else:
+	print Fore.MAGENTA + "Please put in a search value", Fore.WHITE
+	sys.exit()
+
+categorize = False
+if len(argv)>2:
+	if argv[2] == "1":
+		categorize = True
+		print Fore.YELLOW + "Param 2 = 1", Fore.CYAN + "Categorize images", Fore.WHITE
+
+plist = []
+search(searchby)
+if len(plist)<2:
+	print Fore.RED + "No matches", Fore.WHITE
+	sys.exit()
+tolerance = 6
+if len(argv)>3:
+	if len(argv[3])<3:
+		tolerance = int(float(argv[3]))
+
+print Fore.CYAN + "*"*80
+print Fore.YELLOW + "Number of search returns", len(plist), Fore.WHITE
+if len(plist)==10000:
+	print Fore.MAGENTA + "Hit maximum number of search returns, likely to be incomplete", Fore.WHITE
+rArr = []
+phashes = set()
+count = 0
+for p in plist:
+	count += 1
+	page = pywikibot.ImagePage(site, p)
+	url = page.fileUrl()
+	uname = url.split('/')[-1]
+	unameext = uname.split('.')[-1]
+	if not re.search('jpg|jpeg|tif|tiff|png|gif', unameext, flags=re.I):
+		if re.search('pdf|svg', unameext, flags=re.I):
+			continue
+		else:
+			print Fore.RED + "Reject ext", unameext, Fore.WHITE
+			continue
+	urlt = re.sub('/commons/','/commons/thumb/', url)
+	urlt = urlt + '/80px-' + uname
+	rloop = 0
+	while rloop < 5:
+		try:
+			fs = StringIO(urllib.urlopen(urlt).read()) # StringIO ~5x faster
+			im = Image.open(fs)
+			rloop = 99
+		except Exception as e:
+			rloop += 1
+			print Fore.RED + str(rloop), Fore.CYAN + p
+			print Fore.CYAN + urlt, Fore.WHITE
+			print Fore.RED + str(e), Fore.WHITE
+			sleep(20)
+	if rloop !=99:
+		continue
+	dhash = imagehash.phash(im)
+	if count == 1 or count % 100 == 0 or (len(plist)<200 and count % 20 == 0) or count == len(plist):
+		print Fore.CYAN + ("{:0>" + str(len(str(len(plist)))) + "}/{}").format(count, len(plist)) + Fore.GREEN, p[5:70], Fore.YELLOW + time.strftime("%H:%M:%S"), Fore.WHITE
+	rArr.append([p, dhash])
+	phashes.add(dhash)
+fArr = []
+for phash in phashes:
+	matches = []
+	for r in rArr:
+		if phash == r[1]:
+			matches.append(r)
+	if len(matches)>1:
+		fArr.append(matches)
+print Fore.CYAN + "{} duplicates found".format(len(fArr)), Fore.WHITE
+mcount = 0
+done = set()
+for match in fArr:
+	if categorize:
+		for r in match:
+			page = pywikibot.Page(site, r[0])
+			html = page.get()
+			if re.search("DerivativeVersions|RetouchedPicture|<gallery>", html):
+				continue
+			xlinked = False
+			for c in match:
+				if c[0] != r[0]:
+					regex = re.escape(c[0][5:])
+					regex = re.sub(" ", ".", regex)
+					if re.search(regex, html):
+						xlinked = True
+						break
+			if xlinked:
+				done.add(r[1])
+				continue
+			if re.search("Faebot identified duplicate", html):
+				continue
+			htmlnew = html + "\n[[Category:Faebot identified duplicates|" + str(r[1]) + "]]"
+			htmlnew = re.sub("\n?\[\[Category:Images from DoD uploaded by Fæ \(check needed\)\]\]", "", htmlnew)
+			pywikibot.setAction("Faebot identified duplicate, pHash: " + str(r[1]) + " [[User:Fae/Imagehash]] https://commons.wikimedia.org/w/index.php?title=Category:Faebot_identified_duplicates&from=" + str(r[1]))
+			if htmlnew != html:
+				ploop = True
+				while ploop:
+					try:
+						page.put(htmlnew)
+						ploop = False
+					except Exception as e:
+						print Fore.RED + str(e), Fore.WHITE
+						sleep(30)
+	else:
+		mcount += 1
+		for m in match:
+			print Fore.CYAN + str(mcount), Fore.GREEN + m[0]
+gallery = ''
+for phash in phashes:
+	done.add(phash)
+	matches = []
+	for r in rArr:
+		if phash == r[1]:
+			seed = r
+			break
+	for r in rArr:
+		if r[1] in done: continue
+		d = phash-r[1]
+		if d<=tolerance and d>0:
+			done.add(r[1])
+			matches.append(r)
+	if len(matches)>0:
+		gallery += "<gallery heights=50 mode=packed >\n"
+		gallery +=  Fore.GREEN + seed[0] + "|Primary\n"
+		for m in matches:
+			gallery += Fore.YELLOW + m[0] + "|" + "pHash:{}".format(seed[1]-m[1]) + "\n"
+		gallery += Fore.MAGENTA + "</gallery>"
+if gallery!='':
+	print gallery, Fore.WHITE
+else:
+	print Fore.CYAN + "No close matches to display", Fore.WHITE
