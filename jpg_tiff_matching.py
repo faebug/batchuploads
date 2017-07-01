@@ -17,8 +17,7 @@ Permissions: CC-BY-SA-4.0
 import pywikibot, sys, re, string, time
 from sys import argv
 from time import sleep
-from colorama import Fore, Back, Style
-from colorama import init
+from colorama import Fore, Back, Style, init
 init()
 
 site = pywikibot.getSite('commons', 'commons')
@@ -32,7 +31,7 @@ count = 0
 for image in category.members():
 	if image.namespace() != ":File:":
 		continue
-	if not re.search("\(HS85-10-\d+\).jpg", image.title()):
+	if not re.search("\(HS85-10-.{4,}\).jpg", image.title()):
 		continue
 	pair = []
 	for ext in ['tif', 'tiff']:
@@ -83,7 +82,7 @@ for image in category.members():
 				sleep(10)
 	if changesdone:
 		pairs.append(pair)
-		if count % 25 == 0:
+		if count % 10 == 0:
 			print Fore.CYAN, count, Fore.GREEN + pair[0].title()[5:-4], Fore.WHITE
 results = "\n{|class='wikitable'\n!JPEG!!TIFF\n"
 for p in pairs:
