@@ -85,18 +85,17 @@ for image in category.members():
 		pairs.append(pair)
 		if count % 25 == 0:
 			print Fore.CYAN, count, Fore.GREEN + pair[0].title()[5:-4], Fore.WHITE
-results = "{|class='wikitable'\n!JPEG!!TIFF\n"
+results = "\n{|class='wikitable'\n!JPEG!!TIFF\n"
 for p in pairs:
 	results += "|-\n|[[:{}|{}]]||[[:{}|TIFF]]".format(p[0].title(), 'HS85' + p[0].title().split('(HS85')[1].split(')')[0], p[1].title())
 results += "\n|}"
-print results
 
 log = pywikibot.Page(site, 'User:Faebot/SandboxB')
 pywikibot.setAction("Add results of BL cat sync run")
 ploop = True
 while ploop:
 	try:
-		log.put(results)
+		log.put(log.get() + results)
 		ploop = False
 	except Exception as e:
 		print Fore.RED + str(e), Fore.WHITE
