@@ -46,7 +46,7 @@ for image in category.members():
 	html = ""; ccount = 0
 	changesdone = False
 	for cat in image.categories():
-		if cat.isHiddenCategory():
+		if cat.isHiddenCategory() or re.search('categories', cat.title()):
 			continue
 		if cat not in tim.categories():
 			ccount += 1
@@ -64,7 +64,7 @@ for image in category.members():
 				sleep(10)
 	html = ""; ccount = 0
 	for cat in tim.categories():
-		if cat.isHiddenCategory():
+		if cat.isHiddenCategory() or re.search('categories', cat.title()):
 			continue
 		if cat not in image.categories():
 			ccount += 1
