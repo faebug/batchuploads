@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 NOTICE = '''
 jpg_tiff_matching.py
+https://github.com/faebug/batchuploads/blob/master/jpg_tiff_matching.py
 Go through a category checking for jpg tiff pairs.
 Two way sync visible cats.
-Report on-wiki.
 
 Example calls:
 nice -n 19 python pwb.py jpg_tiff_matching -dir:Faebot
@@ -84,18 +84,3 @@ for image in category.members():
 		pairs.append(pair)
 		if count % 10 == 0:
 			print Fore.CYAN, count, Fore.GREEN + pair[0].title()[5:-4], Fore.WHITE
-results = "\n{|class='wikitable'\n!JPEG!!TIFF\n"
-for p in pairs:
-	results += "|-\n|[[:{}|{}]]||[[:{}|TIFF]]".format(p[0].title(), 'HS85' + p[0].title().split('(HS85')[1].split(')')[0], p[1].title())
-results += "\n|}"
-
-log = pywikibot.Page(site, 'User:Faebot/SandboxB')
-pywikibot.setAction("Add results of BL cat sync run")
-ploop = True
-while ploop:
-	try:
-		log.put(log.get() + results)
-		ploop = False
-	except Exception as e:
-		print Fore.RED + str(e), Fore.WHITE
-		sleep(10)
