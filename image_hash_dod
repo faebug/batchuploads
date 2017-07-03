@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 NOTICE = '''
 image_hash_dod.py
+
 Create image hash values and add to duplicate category.
 Searches by partial VIRIN
 
-param1 = skip to image number (slow)
-param2 = category to test
+param1 = skip to image number
+param2 = category to test (none, use default)
 
 Example calls:
 nice -n 19 python pwb.py image_hash_dod 13 -dir:Faebot
@@ -14,8 +15,11 @@ nice -n 10 python pwb.py image_hash_dod 1 "Images from DoD uploaded by Fæ (chec
 python pwb.py image_hash_dod 1 "" -dir:Faebot
 
 Date: June 2017
+3 July 2017 Quicker start-up for large skip values.
+
 Author: Fae, http://j.mp/faewm
 Permissions: CC-BY-SA-4.0
+https://github.com/faebug/batchuploads/blob/master/image_hash_dod
 '''
 
 import pywikibot, sys, urllib2, urllib, re, string, time, os
@@ -38,7 +42,7 @@ init()
 site = pywikibot.getSite('commons', 'commons')
 plist=[]
 
-def search(v): # Future: Try using the API directly
+def search(v): 
 		vcount=0
 		countErr=0
 		loop=True
@@ -79,10 +83,25 @@ for seed in category.members():
 	if not re.search('jpg|jpeg', seed.title()[-4:], flags = re.I):
 		continue
 	ccount += 1
-	# resolution
-	partvirin = re.match("\d{6}-[ADFGHMNOSZ]-", seed.title()[5:-4])
-	if partvirin is None:
-		html = seed.get()
+	partvirin = re.findall("\d{6}-[ADFGHMNOSZ]-", seed.title()[5:-4])
+	if ccount < skip:
+		if ccount % 1000 == 0:
+			print Fore.CYAN, ccount, Fore.MAGENTA, len(doneset), Fore.WHITE
+		if partvirin == []:
+			continue
+		else:
+			k = partvirin[0]
+			if k in doneset:
+				continue
+			else:
+				doneset.add(k)
+				continue
+	if partvirin == []:
+		try:
+			html = seed.get()
+		except Exception as e:
+			print Fore.RED + str(e), Fore.WHITE
+			continue
 		if re.search("virin", html):
 			virin = html.split("virin")[1]
 			virin = re.split("\n", virin)[0]
@@ -96,9 +115,6 @@ for seed in category.members():
 		else:
 			print Fore.RED + "No VIRIN, or parameter, found", seed.title()[5:-4], Fore.WHITE
 			continue
-	if ccount < skip:
-		doneset.add(k)
-		continue
 	if k in doneset:
 		continue
 	print Fore.CYAN, ccount, Fore.GREEN + k, Fore.WHITE
@@ -114,7 +130,7 @@ for seed in category.members():
 	print Fore.CYAN + "*"*80
 	print Fore.CYAN + str(ccount), Fore.YELLOW + "Number of search returns", len(plist), Fore.WHITE
 	rArr = []
-	phashes = set()
+	phashes = set(); dhashes = set()
 	count = 0
 	for p in plist:
 		count += 1
@@ -122,7 +138,7 @@ for seed in category.members():
 		url = page.fileUrl()
 		uname = url.split('/')[-1]	#unameext = uname.split('.')[-1]
 		url = re.sub('/commons/','/commons/thumb/', url)
-		url = url + '/320px-' + uname
+		url = url + '/80px-' + uname
 		rloop = 0
 		while rloop < 3:
 			try:
@@ -137,11 +153,13 @@ for seed in category.members():
 				sleep(5)
 		if rloop !=99:
 			continue
+		phash = imagehash.phash(im)
 		dhash = imagehash.dhash(im)
 		if count == 1 or count % 100 == 0 or (len(plist)<200 and count % 20 == 0) or count == len(plist):
 			print Fore.CYAN + ("{:0>" + str(len(str(len(plist)))) + "}/{} {}").format(count, len(plist), ccount) + Fore.GREEN, p[5:70], Fore.YELLOW + time.strftime("%H:%M:%S"), Fore.WHITE
-		rArr.append([p, dhash])
-		phashes.add(dhash)
+		rArr.append([p, phash, dhash])
+		phashes.add(phash)
+		dhashes.add(dhash)
 	fArr = []
 	for phash in phashes:
 		matches = []
@@ -150,16 +168,31 @@ for seed in category.members():
 				matches.append(r)
 		if len(matches)>1:
 			fArr.append(matches)
+	for dhash in dhashes:
+		matches = []
+		for r in rArr:
+			if dhash == r[2]:
+				matches.append(r)
+		if len(matches)>1:
+			fArr.append(matches)
 	print Fore.CYAN + "{} duplicates found".format(len(fArr)), Fore.WHITE
 	for match in fArr:
-		rhash = match[0][1]
-		matchset = set() # Force uniqueness
-		for r in match:
-			matchset.add(r[0])
+		matchset = set([r[0] for r in match])
 		if len(matchset)==1: # Search may repeat items, redirects?
 			print Fore.RED + "Only one file here, skipping", Fore.WHITE
-		for r in matchset:
-			page = pywikibot.Page(site, r)
+		if len(set([r[1] for r in match]))==1:
+			rhash = match[0][1]
+			phash = True
+		else:
+			print Fore.CYAN + "pHash inconsistent, falling back to dHash matches", Fore.WHITE
+			rhash = match[0][2]
+			phash = False
+		done = set()
+		for r in match:
+			if r[0] in done:
+				continue
+			done.add(r[0])
+			page = pywikibot.Page(site, r[0])
 			html = page.get()
 			if re.search("Faebot identified duplicate", html):
 				continue
@@ -177,12 +210,16 @@ for seed in category.members():
 			vhistory = page.getVersionHistory()
 			comment = [h[3] for h in vhistory if re.search('Hash:', h[3])]
 			if comment != []:
-				print Fore.CYAN + r[5:50]
+				print Fore.CYAN + r[0][5:50]
 				print Fore.YELLOW + "Skipping due to previously identified history"
 				continue
 			htmlnew = html + "\n[[Category:Faebot identified duplicates|" + str(rhash) + "]]"
 			htmlnew = re.sub("\n?\[\[Category:Images from DoD uploaded by Fæ \(check needed\)\]\]", "", htmlnew)
-			pywikibot.setAction("Faebot VIRIN identified duplicate, dHash: " + str(rhash) + " [[User:Fae/Imagehash]] https://commons.wikimedia.org/w/index.php?title=Category:Faebot_identified_duplicates&from=" + str(rhash))
+			if phash:
+				action = "Faebot VIRIN identified duplicate, pHash: " + str(rhash)
+			else:
+				action = "Faebot VIRIN identified duplicate, dHash: " + str(rhash)
+			pywikibot.setAction(action + " [[User:Fae/Imagehash]] https://commons.wikimedia.org/w/index.php?title=Category:Faebot_identified_duplicates&from=" + str(rhash))
 			if htmlnew != html:
 				ploop = True
 				while ploop:
