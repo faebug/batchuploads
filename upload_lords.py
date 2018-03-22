@@ -190,10 +190,10 @@ for asc in range(1, 27):
 				title = head + ".jpg"
 			scount += 1
 			page = pywikibot.Page(site, "File:" + title)
-			if page.exists():
-				continue
+			#if page.exists():
+			#	continue
 			print Fore.MAGENTA + title, Fore.WHITE
-			source=source.split('?')[0]
+			#source=source.split('?')[0]
 			print Fore.GREEN, source, desc, Fore.WHITE
 			dd = "=={{int:filedesc}}==\n{{Information"
 			dd+= "\n|description={{en|1=" + head + "}}"
