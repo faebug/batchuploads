@@ -1,14 +1,14 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 __NOTICE__ = '''
-upload_mps.py
+upload_lords.py
 Pull images from beta.parliament.uk
 
 param 1 = skip to letter (A=1)
 
 Date:
 	2017 May create
-	2018 Mar update to cover House of Lords photos, by request
+	2018 Mar fork to cover House of Lords photos, by request
 
 Author: Fae, http://j.mp/faewm
 Permissions: CC-BY-SA-4.0
@@ -121,23 +121,6 @@ def htmltry(x,u):
 						r=False
 		return
 
-def uptry(source, filename, desc, comment):
-		countErr=0
-		r=True
-		while r:
-				try:
-						up(source, filename, desc, comment)
-						return
-				except Exception as e:
-						countErr+=1
-						p=countErr*5
-						print Fore.CYAN,'** ERROR Upload failed'
-						if countErr > 4: return
-						print Fore.RED, str(e), Fore.CYAN
-						print ' ** Pause for '+str(p)+' seconds and try again'+ Fore.WHITE
-						time.sleep(p)
-		return
-	
 print Fore.GREEN + '*' *80,
 print __NOTICE__
 print '*' * 80, Fore.WHITE
