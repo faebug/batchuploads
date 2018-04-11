@@ -147,6 +147,8 @@ for page in range(1,numPages + 1):
 		common=r['en']
 		title=genus+" "+species+" - "+common+" XC"+ref
 		filename=title + ".mp3"
+		if count % 100 == 0:
+			print Fore.GREEN + "{:0>5}".format(count), "-"*40, Fore.YELLOW + time.strftime("%H:%M:%S"), Fore.WHITE
 		if pywikibot.FilePage(site, 'File:' + filename).exists()\
 		or pywikibot.FilePage(site, 'File:' + title + ".ogg").exists():
 			continue
@@ -155,7 +157,7 @@ for page in range(1,numPages + 1):
 			print Fore.RED, "Xenocanto ID in use"
 			print Fore.CYAN + '   ' + '\n   '.join(m[5:] for m in matches), Fore.WHITE
 			continue
-		print Fore.CYAN + "{:0>4}".format(count), Fore.GREEN + filename
+		print Fore.CYAN + "{:0>5}".format(count), Fore.GREEN + filename
 		source=r['file']
 		if re.match(u"//", source): source = 'https:' + source
 		artist=r['rec']
@@ -197,7 +199,7 @@ for page in range(1,numPages + 1):
 				remarks=re.sub("\n+","\n:",re.sub("\s*\n\s*","\n",remarks))
 				remarks=re.sub("<a [^>]*>","",re.sub("<\/a>","",remarks))
 		d=u"=={{int:filedesc}}==\n{{information"
-		d+="\n|description={{en|"
+		d+="\n|description={{en|1="
 		if remarks!='':
 			d+=remarks.decode('utf-8')
 		if len(r['en'])>2:
@@ -226,12 +228,20 @@ for page in range(1,numPages + 1):
 		d+="{{User:{{subst:User:Fae/Fae}}/Projects/Xeno-canto/credit}}"
 		d+="\n\n=={{int:license-header}}==\n" + license + "\n"
 		cat=r['gen']+" "+r['sp']
-		if pywikibot.Page(site, cat).exists():
+		if pywikibot.Page(site, 'Category:' + cat).exists():
 				d+="\n[[Category:"+cat+"]]"
 		d+="\n[[Category:Xeno-canto]]\n[[Category:Sound files uploaded by {{subst:User:Fae/Fae}}]]"
 		print Fore.CYAN+d,Fore.WHITE
 		localfile = DIR + ref + '.mp3'
 		urllib.urlretrieve(source, localfile)
 		comment = "Xenocanto batch #{}, {}".format(count, gallery)
-		up(localfile, filename, d, comment, False)
+		try:
+			up(localfile, filename, d, comment, False)
+		except Exception as e:
+			if re.search("verification-error", str(e)):
+				print Fore.MAGENTA, "Error probably due to restricted species at source", Fore.WHITE
+			else:
+				print Fore.RED, "Error at upload"
+				print Fore.RED, str(e),Fore.WHITE
+				sleep(300)
 		remove(localfile)
