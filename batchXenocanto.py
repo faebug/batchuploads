@@ -1,16 +1,17 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 NOTICE = '''
-Upload any missing Xeno-Canto audio files
+Upload any missing Xeno-Canto audio files, but only if cc-by licensed
 
-Not a while-listed site, so local download needed
+Not a url upload white-listed site, so local download needed
 
 Date:
 	2013 July Creation
 	2018 April rewrite, initially with Juypiter lab
     	Dropped file conversion now mp3 is allowed
+    	Add cc-by-4.0 option
 
-Example:
+Example command line:
 python2 pwb.py batch_xenocanto
 
 Author:			Fae, http://j.mp/faewm
@@ -162,6 +163,14 @@ for page in range(1,numPages + 1):
 		url=urltry(gallery)
 		html=htmltry(url,gallery)
 		soup=BeautifulSoup(html)
+		lic = soup.findAll('a', href=re.compile('.*?creativecommons.org'))[-1]['href']
+		if re.search("by-sa/4", lic):
+			license = "{{Cc-by-sa-4.0}}"
+		elif re.search("by-sa/3", lic):
+			license = "{{Cc-by-sa-3.0}}"
+		else:
+			print Fore.RED, lic
+			print " Unexpected license?", Fore.WHITE
 		rd=str(soup.find('section',{'id':'recording-data'}).find('tbody'))
 		date=rd.split(">Date<")[1].split('<td>')[1].split('<')[0]
 		dtime=""
@@ -213,13 +222,13 @@ for page in range(1,numPages + 1):
 		d+="\n|source=\n:Metadata: "+gallery+"\n:Audio file: "+source
 		d+="\n}}"
 		if r['lat'] is not None and len(r['lat'])>2:
-				d+="{{object location dec|"+r['lat']+"|"+r['lng']+"}}"
+				d+="\n{{object location dec|"+r['lat']+"|"+r['lng']+"}}"
 		d+="{{User:{{subst:User:Fae/Fae}}/Projects/Xeno-canto/credit}}"
-		d+="\n\n=={{int:license-header}}==\n{{cc-by-sa-3.0}}"
-		d+="\n[[Category:Xeno-canto]]\n[[Category:Sound files uploaded by {{subst:User:Fae/Fae}}]]"
+		d+="\n\n=={{int:license-header}}==\n" + license + "\n"
 		cat=r['gen']+" "+r['sp']
 		if pywikibot.Page(site, cat).exists():
 				d+="\n[[Category:"+cat+"]]"
+		d+="\n[[Category:Xeno-canto]]\n[[Category:Sound files uploaded by {{subst:User:Fae/Fae}}]]"
 		print Fore.CYAN+d,Fore.WHITE
 		localfile = DIR + ref + '.mp3'
 		urllib.urlretrieve(source, localfile)
