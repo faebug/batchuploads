@@ -2,20 +2,23 @@
 # -*- coding: utf-8 -*-
 __NOTICE__ = '''
 upload_lords.py
-Pull images from beta.parliament.uk
-
-param 1 = skip to letter (A=1)
+also refer to upload_house_of_commons.py
+Pull images from parliament.uk for House of Lords
+You must set up LOCALDIR for downloading files
 
 Date:
 	2017 May create
 	2018 Mar fork to cover House of Lords photos, by request
+	2019 Add EXIF detection of date/photographer
+		 Version to go on GitHub, be warned, there are unused modules and
+		 dead code here!
 
 Author: Fae, http://j.mp/faewm
 Permissions: CC-BY-SA-4.0
 '''
 
 import pywikibot, upload, sys, urllib2, urllib, re, string, time, os
-import webbrowser, cookielib, json, datetime
+import json, datetime, exiftool
 from pywikibot import pagegenerators
 from BeautifulSoup import BeautifulSoup
 from sys import argv
@@ -25,6 +28,7 @@ from os import remove
 from colorama import Fore, Back, Style
 from colorama import init
 init()
+from titlecase import titlecase
 
 # SSL/TLS reach-around
 import shutil, urllib3, certifi
@@ -125,7 +129,7 @@ print Fore.GREEN + '*' *80,
 print __NOTICE__
 print '*' * 80, Fore.WHITE
 
-LOCALDIR = '/Volumes/RAM Disk/'
+LOCALDIR = '/home/redacted/Downloads/TEMP/'
 if not os.path.exists(LOCALDIR):
 	print Fore.MAGENTA + "RAM Disk or alternative must be set up"
 	sys.exit()
@@ -137,52 +141,82 @@ if len(argv)>1:
 if len(argv)>2:
 	skipi = int(float(argv[2]))
 	
-print skipl, skipi
-	
 count=0
 uploadcount = 0
 
-domain = "https://beta.parliament.uk"
-base = "https://beta.parliament.uk/houses/WkUWUBMx/members/current/a-z/{}"
+domain = "https://members.parliament.uk"
 
-for asc in range(1, 27):
-	if asc<skipl: continue
-	letter = chr(64 + asc)
-	print Fore.MAGENTA + "Browse from {} ({})".format(letter, asc), Fore.WHITE
-	url = base.format(letter.lower())
+base = "https://members.parliament.uk/members/Lords"
+
+url = base + "?page=1"
+uri = urltry(url)
+soup = BeautifulSoup(htmltry(uri, url))
+maxp = int(float(soup.find('div', {"class":"result-text"}).text.split('of')[-1].split(')')[0]))
+print Fore.GREEN, "Total pages in gallery", maxp, "each with 20 members", Fore.WHITE
+ucount = 0
+for p in range(1, maxp+1):
+	url = base + "?page=" + str(p)
+	print url
 	uri = urltry(url)
 	lsoup = BeautifulSoup(htmltry(uri, url))
-	gpages = lsoup.findAll('a', href=re.compile("/people/*"))
-	print len(gpages), 'people found under', letter
+	gpages = lsoup.findAll('a', href=re.compile("/member/.*/contact")) #https://members.parliament.uk/member/172/portrait
+	print len(gpages), 'people found on page', p
 	gcount = 0
 	for gpage in gpages:
 		gcount += 1
-		url = domain + gpage['href']
-		print Fore.GREEN + "{} {}/{}".format(letter, gcount, len(gpages)), Fore.CYAN + url, Fore.YELLOW + time.strftime("%H:%M:%S") + Fore.WHITE
+		url = domain + re.findall(r"\/member\/\d*", gpage['href'])[0] + "/portrait"
+		print Fore.GREEN + "{}/{} {}/{}".format(p, maxp, gcount, len(gpages)), Fore.CYAN + url, Fore.YELLOW + time.strftime("%H:%M:%S") + Fore.WHITE
 		uri = urltry(url)
 		lsoup = BeautifulSoup(htmltry(uri, url))
-		mediaurl = lsoup.find('a', href=re.compile("/media/*"))
-		if mediaurl is None:
+		#https://members-api.parliament.uk/api/Members/172/Portrait?cropType=FullSize&webVersion=false
+		sources = lsoup.findAll('img', src=re.compile(".*Portrait\?cropType.*"))
+		if len(sources)<4:
 			continue
-		print Fore.CYAN, domain + mediaurl['href'], Fore.WHITE
-		uri = urltry(domain + mediaurl['href'])
-		msoup = BeautifulSoup(htmltry(uri, mediaurl))
-		sources = msoup.findAll('a', href=re.compile(".*/photo/.*download=true"))
 		scount = 0
-		head = msoup.find('h1').contents[0]
+		head = "Official portrait of " + lsoup.find('h1').contents[0]
+		loop = True
+		lcount = 0
+		local = LOCALDIR + 'lord.jpg'
+		try:
+			remove(local)
+		except:
+			pass
+		rloop = True
+		source = sources[0]['src'] + "&webVersion=false"
+		print source
+		while rloop:
+			try:
+				urllib.urlretrieve(source, local)# not working due to new site security
+				'''with http.request('GET', source, preload_content=False) as resp, open(local, 'wb') as out_file:
+					shutil.copyfileobj(resp, out_file)
+				resp.release_conn()'''
+				rloop = False
+			except Exception as e:
+				print Fore.RED + str(e), Fore.WHITE
+				sleep(30)
+		with exiftool.ExifTool() as et:
+			metadata = et.get_metadata(local)
+		#print metadata
+		artist,date = '',''
+		for k in ['XMP:Creator', 'EXIF:Artist']:
+			if k in metadata.keys():
+				print Fore.CYAN, k, Fore.YELLOW, metadata[k], Fore.WHITE
+				artist = metadata[k]
+				break
+		for k in ['XMP:DateCreated', 'XMP:MetadataDate']:
+			if k in metadata.keys():
+				print Fore.CYAN, k, Fore.YELLOW, metadata[k], Fore.WHITE
+				date = metadata[k]
+				break
+		if date == '':
+			continue
+		year = date[:4]
+		if int(float(year)) < 2019:
+			continue
+		date = re.sub(":", "-", date.split(' ')[0])
 		for s in sources:
-			source = s['href']
-			if len(sources)>1:
-				sscount = 0
-				gallery = "<gallery>"
-				for ss in sources:
-					if ss != s:
-						gallery += "\n" + head
-						if sscount!=0:
-							gallery += " crop {}".format(sscount)
-						gallery += ".jpg"
-					sscount += 1
-				gallery += "\n</gallery>"
+			atitle = re.sub(":", u"×", s['alt'])
+			source = s['src']
 			desc = s.text
 			if scount>0:
 				title = head + " crop {}.jpg".format(scount)
@@ -190,32 +224,49 @@ for asc in range(1, 27):
 				title = head + ".jpg"
 			scount += 1
 			page = pywikibot.Page(site, "File:" + title)
-			#if page.exists():
-			#	continue
+			distinguish = ""
+			if page.exists():
+				print Fore.RED, "Page exists", Fore.YELLOW + page.title().split(" of ")[-1].split(".j")[0], Fore.WHITE
+				rev = [r for r in page.revisions(reverse=True, total=1)][0]
+				if rev.timestamp.year >= 2019:
+					continue
+				distinguish = ", {}".format(year)
+				title = title[:-4] + distinguish + ".jpg"
+				page = pywikibot.Page(site, "File:" + title)
+				if page.exists():
+					continue
+			if len(sources)>1:
+				sscount = 0
+				gallery = "<gallery>"
+				for ss in sources:
+					if ss != s:
+						gallery += "\n" + head + distinguish
+						if sscount!=0:
+							gallery += " crop {}".format(sscount) + distinguish
+						gallery += ".jpg"
+					sscount += 1
+				gallery += "\n</gallery>"
 			print Fore.MAGENTA + title, Fore.WHITE
-			#source=source.split('?')[0]
 			print Fore.GREEN, source, desc, Fore.WHITE
 			dd = "=={{int:filedesc}}==\n{{Information"
-			dd+= "\n|description={{en|1=" + head + "}}"
-			dd+= "\n|author = {{Creator:Chris McAndrew}}"
-			dd+= "\n|date=2018-03"
-			dd+= "\n|source = "+ source + "\n:Gallery: " + domain + mediaurl['href']
-			dd+= "\n|permission = For confirmation of licence, see https://pds.blog.parliament.uk/2017/07/21/mp-official-portraits-open-source-images/"
+			dd+= "\n|description={{en|1=" + head + "\n*" + atitle + "}}"
+			dd+= "\n|author = " + titlecase(artist)
+			dd+= "\n|date= " + date
+			dd+= "\n|source = "+ source + "\n:Gallery: " + url
+			dd+= "\n|permission = "
 			dd+= "\n|other versions = " + gallery
 			dd+= "\n}}\n\n=={{int:license-header}}==\n{{cc-by-3.0}}\n"
-			dd+= "\n[[Category:Official United Kingdom Parliamentary photographs 2017]]"
+			dd+= "\n[[Category:Official United Kingdom Parliamentary photographs " + year + "]]"
 			dd+= "\n[[Category:Images uploaded by {{subst:User:Fae/Fae}}]]"
-			comment = head
+			comment = u"[[User:Fæ/Project list/United Kingdom Parliamentary photographs|Parliamentary photographs batch upload]]: " + head
 			loop = True
 			lcount = 0
-			local = LOCALDIR + 'mp.jpg'
+			local = LOCALDIR + 'lord.jpg'
 			rloop = True
 			while rloop:
 				try:
-					#urllib.urlretrieve not working due to new site security
-					with http.request('GET', source, preload_content=False) as resp, open(local, 'wb') as out_file:
-						shutil.copyfileobj(resp, out_file)
-					resp.release_conn()
+					if scount>1:
+						urllib.urlretrieve(source + "&webVersion=false", local)
 					rloop = False
 				except Exception as e:
 					print Fore.RED + str(e), Fore.WHITE
