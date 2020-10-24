@@ -4,17 +4,19 @@ __NOTICE__ = '''
 upload_lords.py
 also refer to upload_house_of_commons.py
 Pull images from parliament.uk for House of Lords
-You must set up LOCALDIR for downloading files
 
 Date:
-	2017 May create
-	2018 Mar fork to cover House of Lords photos, by request
-	2019 Add EXIF detection of date/photographer
-		 Version to go on GitHub, be warned, there are unused modules and
-		 dead code here!
+	2017 May create.
+	2018 Mar fork to cover House of Lords photos, by request.
+	2020 Add EXIF detection of date/photographer.
+		 There are unused modules and dead code here!
+	2020 Oct force year in filenames, match commons script.
 
 Author: Fae, http://j.mp/faewm
 Permissions: CC-BY-SA-4.0
+
+Command line
+python pwb.py upload_lords.py <optional filter regex>
 '''
 
 import pywikibot, upload, sys, urllib2, urllib, re, string, time, os
@@ -49,7 +51,7 @@ def up(filename, pagetitle, desc, comment):
 		comment=comment, 
 		text=desc, 
 		watch=False, 
-		ignore_warnings=True,
+		ignore_warnings=True, # True if ignoring duplicates
 		chunk_size=1048576)
 		return
 	url = source_url
@@ -129,18 +131,19 @@ print Fore.GREEN + '*' *80,
 print __NOTICE__
 print '*' * 80, Fore.WHITE
 
-LOCALDIR = '/home/redacted/Downloads/TEMP/'
+LOCALDIR = '/home/ashley/Downloads/TEMP/'
 if not os.path.exists(LOCALDIR):
 	print Fore.MAGENTA + "RAM Disk or alternative must be set up"
 	sys.exit()
 
+regex = ''
 skipl = 0
 skipi = 0
 if len(argv)>1:
 	skipl = int(float(argv[1]))
 if len(argv)>2:
 	skipi = int(float(argv[2]))
-	
+
 count=0
 uploadcount = 0
 
@@ -157,6 +160,8 @@ ucount = 0
 for p in range(1, maxp+1):
 	url = base + "?page=" + str(p)
 	print url
+	if p < skipl:
+		continue
 	uri = urltry(url)
 	lsoup = BeautifulSoup(htmltry(uri, url))
 	gpages = lsoup.findAll('a', href=re.compile("/member/.*/contact")) #https://members.parliament.uk/member/172/portrait
@@ -164,6 +169,7 @@ for p in range(1, maxp+1):
 	gcount = 0
 	for gpage in gpages:
 		gcount += 1
+		giveup = False
 		url = domain + re.findall(r"\/member\/\d*", gpage['href'])[0] + "/portrait"
 		print Fore.GREEN + "{}/{} {}/{}".format(p, maxp, gcount, len(gpages)), Fore.CYAN + url, Fore.YELLOW + time.strftime("%H:%M:%S") + Fore.WHITE
 		uri = urltry(url)
@@ -174,6 +180,9 @@ for p in range(1, maxp+1):
 			continue
 		scount = 0
 		head = "Official portrait of " + lsoup.find('h1').contents[0]
+		if regex != '':
+			if not re.search(regex, head):
+				continue
 		loop = True
 		lcount = 0
 		local = LOCALDIR + 'lord.jpg'
@@ -211,41 +220,51 @@ for p in range(1, maxp+1):
 		if date == '':
 			continue
 		year = date[:4]
-		if int(float(year)) < 2019:
+		if int(float(year)) < 2020:
+			print Fore.MAGENTA, "year", year, Fore.WHITE
 			continue
 		date = re.sub(":", "-", date.split(' ')[0])
 		for s in sources:
+			if giveup: continue
 			atitle = re.sub(":", u"×", s['alt'])
 			source = s['src']
-			desc = s.text
-			if scount>0:
-				title = head + " crop {}.jpg".format(scount)
-			else:
-				title = head + ".jpg"
-			scount += 1
-			page = pywikibot.Page(site, "File:" + title)
-			distinguish = ""
-			if page.exists():
-				print Fore.RED, "Page exists", Fore.YELLOW + page.title().split(" of ")[-1].split(".j")[0], Fore.WHITE
-				rev = [r for r in page.revisions(reverse=True, total=1)][0]
-				if rev.timestamp.year >= 2019:
-					continue
-				distinguish = ", {}".format(year)
-				title = title[:-4] + distinguish + ".jpg"
-				page = pywikibot.Page(site, "File:" + title)
-				if page.exists():
-					continue
 			if len(sources)>1:
 				sscount = 0
 				gallery = "<gallery>"
 				for ss in sources:
 					if ss != s:
-						gallery += "\n" + head + distinguish
+						gallery += "\n" + head + " " + year
 						if sscount!=0:
-							gallery += " crop {}".format(sscount) + distinguish
+							gallery += " crop {}".format(sscount)
 						gallery += ".jpg"
 					sscount += 1
 				gallery += "\n</gallery>"
+			desc = s.text
+			if scount>0:
+				title = head + " " + year + " crop {}.jpg".format(scount)
+				btitle = head + " " + year + " crop {}.jpg".format(scount)
+			else:
+				title = head + " " + year + ".jpg"
+				btitle = head + " " + year + ".jpg"
+			scount += 1
+			page = pywikibot.Page(site, u"File:" + title)
+			pageb = pywikibot.Page(site, u"File:" + btitle)
+			pagec = pywikibot.Page(site, u"File:" + head + ".jpg")
+			if pageb.exists():
+				print Fore.RED, "Page exists", pageb.title(), Fore.WHITE
+				giveup = True
+				continue
+			if pagec.exists():
+				html = pagec.get()
+				try:
+					cyear = html.split("|date= ")[1].split('-')[0]
+					if cyear == year:
+						print Fore.RED, "Old page exists", pagec.title()
+						print " and year is", cyear
+						giveup = True
+						continue
+				except:
+					pass
 			print Fore.MAGENTA + title, Fore.WHITE
 			print Fore.GREEN, source, desc, Fore.WHITE
 			dd = "=={{int:filedesc}}==\n{{Information"
@@ -258,10 +277,9 @@ for p in range(1, maxp+1):
 			dd+= "\n}}\n\n=={{int:license-header}}==\n{{cc-by-3.0}}\n"
 			dd+= "\n[[Category:Official United Kingdom Parliamentary photographs " + year + "]]"
 			dd+= "\n[[Category:Images uploaded by {{subst:User:Fae/Fae}}]]"
-			comment = u"[[User:Fæ/Project list/United Kingdom Parliamentary photographs|Parliamentary photographs batch upload]]: " + head
+			comment = u"[[User:Fæ/Project list/United Kingdom Parliamentary photographs|Parliamentary photographs batch upload]]: {} {}".format(head, year)
 			loop = True
 			lcount = 0
-			local = LOCALDIR + 'lord.jpg'
 			rloop = True
 			while rloop:
 				try:
@@ -273,7 +291,11 @@ for p in range(1, maxp+1):
 					sleep(30)
 			while loop:
 				try:
-					uptry(local, title, dd, comment)
+					ures = uptry(local, title, dd, comment)
+					if ures in ['duplicate']:
+						giveup = True
+					if ures in ['retrieval incomplete']:
+						lcount += 1
 					#print dd
 					loop=False
 				except Exception as e:
