@@ -3,23 +3,27 @@
 NOTICE='''
 Upload from ClinCalc DrugStats Database
 
-First pass used the 300 drugs list.
-Second pass hacked the list by exhaustive 3-letter searches.
+First pass used the 300 drugs list, now deadcode.
+Second pass hacked the list by exhaustive 3-letter searches. There's probably a
+quick list command rather than queries, but volunteer time is limited!
 
 Date: 23 January 2021
+
+Author: Fæ
+https://commons.wikimedia.org/wiki/User:Fae
+
+Copyright: CC-BY-SA-4.0
 
 Example
 python pwb.py upload_drugstats
 '''
 import urllib2
-from requests import get
 from BeautifulSoup import BeautifulSoup
 from os import remove
 import plotly
 import plotly.graph_objects as go
 import pywikibot, urllib2, re, sys, os
-from colorama import Fore, Back, Style
-from colorama import init
+from colorama import Fore, Back, Style, init
 init()
 
 site = pywikibot.Site('commons','commons')
@@ -60,7 +64,9 @@ def drugchart(durl):
 	dhtml = urllib2.urlopen(durl).read()
 	dsoup = BeautifulSoup(dhtml)
 	dtitle = dsoup.find('h1', {'class':'HeadingText'}).text.strip()
-	#print dtitle
+	longtit=False
+	if len(dtitle)>25:
+		longtit = True
 	cotdata = dsoup.find('div', id='divCostOverTime').findNext('script').text
 	potdata = dsoup.find('div', id='divPrescriptionsOverTime').findNext('script').text
 	cotdata = eval(cotdata.split('data.addRows(')[1].split(')')[0])
@@ -73,22 +79,37 @@ def drugchart(durl):
 	totcost = [i[1] for i in cotdata]
 	oopcost = [i[2] for i in cotdata]
 	fig = go.Figure()
-	fig.add_trace(go.Scatter(x=yearc, y=totcost, name="Total Cost"))
-	fig.add_trace(go.Scatter(x=yearc, y=oopcost, name="Out of Pocket Cost"))
-	fig.update_layout(title=dtitle + " drug cost over time ({}-{})".format(ymin,ymax),
+	line = dict(width=8)
+	marker=dict(size=16)
+	fig.add_trace(go.Scatter(x=yearc, y=totcost, name="Total Cost", line=line, marker=marker))
+	fig.add_trace(go.Scatter(x=yearc, y=oopcost, name="Out of Pocket", line=line,marker=marker))
+	if longtit:
+		dtit = dtitle
+	else:
+		dtit = dtitle + " costs {}-{}"
+	fig.update_layout(title=("<b>"+dtit+"</b>").format(ymin,ymax),
 			xaxis_title = "Year",
 			yaxis_title="Price USD",
-			margin=dict(pad=0))
+			title_x=0.5,
+			margin=dict(pad=0),
+			font=dict(size=24),
+			legend=dict(yanchor='top',y=0.99,xanchor='left',x=0.01,bgcolor='rgba(0,0,0,0)'))
 	fig.update_yaxes(rangemode="tozero")
 	fig.update_xaxes(tickmode='array', tickvals=yearc, automargin=False)
 	ymax, ymin = max(yearp), min(yearp)
 	pres = [i[1] for i in potdata]
 	figp = go.Figure()
-	figp.add_trace(go.Scatter(x=yearp, y=pres, name="Prescriptions"))
-	figp.update_layout(title=dtitle + " number of prescriptions ({}-{})".format(ymin,ymax),
+	figp.add_trace(go.Scatter(x=yearp, y=pres, name="Prescriptions", line=line, marker=marker))
+	if longtit:
+		dtit = dtitle
+	else:
+		dtit = dtitle + " Rx {}-{}"
+	figp.update_layout(title=("<b>"+dtit+"</b>").format(ymin,ymax),
 			xaxis_title = "Year",
 			yaxis_title="Prescriptions, USA",
-			margin=dict(pad=0))
+			title_x=0.5,
+			margin=dict(pad=0),
+			font=dict(size=24))
 	figp.update_yaxes(rangemode="tozero")
 	figp.update_xaxes(tickmode='array', tickvals=yearp, automargin=False)
 	return fig, figp, dtitle, cotdata, potdata, dsoup
@@ -104,8 +125,8 @@ defaulttext = u"""{{Current}}
 
 def upthisdrug(drug):
 	global count
-	source = 'https://clincalc.com/DrugStats/' + drug['href']
-	dname = drug['href'].split('/')[-1]
+	source = 'https://clincalc.com/DrugStats/' + drug #drug['href']
+	dname = drug.split('/')[-1]
 	fig, figp, title, cotdata, potdata, soup = drugchart(source)
 	if not fig:
 		print Fore.MAGENTA, count, drug, "not enough data", Fore.WHITE
@@ -113,13 +134,15 @@ def upthisdrug(drug):
 	desc = soup.find('meta', {'name':'description'})['content']
 	keywords = soup.find('meta', {'name':'description'})['content'].split(' including:')[-1].strip()
 	date = soup.find('span', id='lblLastUpdated').text
-	for c in [[ "prescriptions", figp, potdata ],
-			  [ "costs", fig, cotdata ]]:
+	for c in [[ "prescriptions", figp, potdata ], [ "costs", fig, cotdata ]]:
 		filename = dname + " {} (DrugStats).svg".format(c[0])
 		page=pywikibot.Page(site, u'File:'+filename)
-		if page.exists() and re.search(re.escape(date), page.get()):
+		'''if page.exists() and re.search(re.escape(date), page.get()):
 			print Fore.MAGENTA, count, "exists", Fore.WHITE
-			return False
+			if c[0]=='costs':
+				return False
+			else:
+				continue'''
 		print Fore.CYAN, count, Fore.GREEN + filename, Fore.WHITE
 		dd = defaulttext
 		dd += "|description = {{en|1=" + c[0].title() + " chart for ''" + title + "''."
@@ -142,7 +165,7 @@ def upthisdrug(drug):
 		if len(sys.argv)<2:
 			up(local, filename, dd, comment, True)
 		remove(local)
-		return True
+	return True
 
 topurl = "https://clincalc.com/DrugStats/Top300Drugs.aspx"
 html = urllib2.urlopen(topurl).read()
@@ -166,6 +189,7 @@ for a in charx:
 			charxx.append(a+b+c)
 print len(charxx)
 alldrugs=set()
+count = 1
 for x in charxx:
 	url = "https://clincalc.com/DrugStats/Default.aspx?query=drugName&d=" + x
 	html = urllib2.urlopen(url).read()
@@ -181,7 +205,8 @@ for x in charxx:
 			foundsome = True
 			print Fore.GREEN,href,
 			alldrugs.add(href)
-			outcome = upthisdrug('Drugs/' + href)
+			if upthisdrug('Drugs/' + href):
+				count += 1
 	if foundsome:
 		print
 		print Fore.YELLOW, len(alldrugs), Fore.WHITE
