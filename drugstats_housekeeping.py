@@ -6,21 +6,18 @@ Housekeeping the DrugStats collection
 Work out the best drug name
 Check category existence and redirects
 Skip any with more than 2 categories
+Runs from a terminal showing progress
 
 Date: 24 January 2021
+
+Author: Fæ
+https://commons.wikimedia.org/wiki/User:Fae
 
 Example
 python pwb.py drugstats_housekeeping
 '''
-import urllib2
-from requests import get
-from BeautifulSoup import BeautifulSoup
-from os import remove
-import plotly
-import plotly.graph_objects as go
-import pywikibot, urllib2, re, sys, os
-from colorama import Fore, Back, Style
-from colorama import init
+import pywikibot, re
+from colorama import Fore, Back, Style, init
 init()
 
 site = pywikibot.Site('commons','commons')
